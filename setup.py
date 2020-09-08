@@ -13,7 +13,10 @@ setup(name             = 'Invoice_OCR',
 
       url              = 'https://github.com/daehee9119/Invoice_OCR',
 
-      install_requires=[],
+      install_requires = [
+            'google-cloud-vision >= 1.0.0',
+            'pdf2image >= 1.13.1'
+      ],
 
       packages         = find_packages(exclude=[]),
 

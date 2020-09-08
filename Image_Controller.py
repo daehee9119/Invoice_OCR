@@ -1,8 +1,6 @@
 import os
 import shutil
 from pdf2image import convert_from_path
-import cv2
-import numpy as np
 
 
 def move_img(original_path, target_path, cleansed_list):

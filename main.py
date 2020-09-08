@@ -8,14 +8,28 @@ import re
 import Image_Controller
 # 구글 클라우드 vision api 호출 함수를 모아둔 스크립트
 import Cloud_Vision
+# OS 관련 일을 처리할 함수를 모아둔 스크립트
+import Util
+# 예외 처리용 패키지
+import traceback
 
 
 # ######################MAIN STREAM###################### #
 if __name__ == '__main__':
-    # ini 파일을 읽어올 config 객체 생성
-    config = configparser.ConfigParser()
-    config.read('./config/Invoice_OCR.ini')
-    config_dict = config[os.path.relpath(__file__)]
+
+    # ini 파일 데이터를 적재할 config 객체 생성
+    config_dict = ''
+    try:
+        # ini 파일 읽기
+        config = configparser.ConfigParser()
+        config.read('./config/Invoice_OCR.ini')
+        config_dict = config[os.path.relpath(__file__)]
+    except IOError as e:
+        print("Failed to load Config File! (./config/Invoice_OCR.ini) ")
+        traceback.print_stack()
+        traceback.print_exc()
+        # config 파일이 없으면 프로그램 그냥 종료해야 함
+        exit(-1)
 
     # API 사용을 위한 인증 정보를 환경 변수에 설정
     # 그냥 환경변수에 설정하면 원인 모를 이유로 python 실행 시 가져오지 못함
@@ -26,6 +40,8 @@ if __name__ == '__main__':
     # jpeg로 모두 클린징한 invoice를 모아두는 경로
     cleansed_path = config_dict["Cleansed_Data"]
     result_path = config_dict["Result"]
+    # 필요 경로 생성
+    Util.make_dir([original_path, cleansed_path, result_path])
 
     # 이미 정제된 파일명을 따로 모으기
     cleansed_file_list = []

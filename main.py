@@ -12,6 +12,8 @@ import Cloud_Vision
 import Util
 # 예외 처리용 패키지
 import traceback
+# 엑셀 데이터를 가져와 관리할 용도
+import pandas as pd
 
 
 # ######################MAIN STREAM###################### #
@@ -38,34 +40,50 @@ if __name__ == '__main__':
     # 원본 이미지, pdf 파일들을 모아두는 경로
     original_path = config_dict["Origin_Data"]
     # jpeg로 모두 클린징한 invoice를 모아두는 경로
-    cleansed_path = config_dict["Cleansed_Data"]
+    formatted_path = config_dict["Cleansed_Data"]
+    cropped_path = config_dict["Cropped_Data"]
     result_path = config_dict["Result"]
+    coord_excel = config_dict["Coordinates Excel"]
+    # 이미지 너비,높이를 공백 제거 및 , 로 자르기
+    resize_standard_w = config_dict["Resize Standard Width"]
+    resize_standard_h = config_dict["Resize Standard Height"]
     # 필요 경로 생성
-    Util.make_dir([original_path, cleansed_path, result_path])
+    Util.make_dir([original_path, formatted_path, result_path])
+
+    # 업체별 좌표값 읽어오기 (파일이 있는 경우만, 없다면 좌표 지정 없이 풀텍스트 OCR
+    coord_dict = ""
+    if os.path.isfile(coord_excel):
+        coord_dict = pd.read_excel(coord_excel, 'Coordinates')
 
     # 이미 정제된 파일명을 따로 모으기
-    cleansed_file_list = []
-
-    # 이미 cleansed 된 파일의 리스트
-    for img_file in os.listdir(cleansed_path):
+    formatted_file_list = []
+    # 이미 cleansed 된 경로 내 파일 순회
+    for img_file in os.listdir(formatted_path):
         base_filename = os.path.splitext(os.path.basename(img_file))[0]
-        cleansed_file_list.append(base_filename)
+        formatted_file_list.append(base_filename)
 
-    Image_Controller.move_img(original_path, cleansed_path, cleansed_file_list)
+    # pdf 포함 모든 파일들을 이미지로 변환하여 cleansed 경로로 이동
+    Image_Controller.move_img(original_path, formatted_path, formatted_file_list)
+
+    # 이미지 전처리 수행 (회전, 리사이즈)
+    Image_Controller.cleanse_img()
+
+    # 좌표가 주어진 이미지에 한하여 해당 좌표로 잘라 cropped_path로 이동, 좌표 없으면 그대로 이동
+    Image_Controller.crop_image(formatted_path, cropped_path, coord_dict)
 
     # #### 추출규칙 선정의 #### #
     # Shipper 주소
-    shipper = re.compile(pattern='(?P<bsn>\d{3}-\d{2}-\d{5})')
-
-    # 5개의 샘플만 시도
-    count = 0
-    for img_file in os.listdir(cleansed_path):
-        if count > 5:
-            break
-        total_str = Cloud_Vision.detect_img_text(cleansed_path + img_file)
-        with io.open(result_path + img_file + '_result.txt', 'w', encoding="utf-8") as f:
-            f.write(total_str)
-        count += 1
+    # shipper = re.compile(pattern='(?P<bsn>\d{3}-\d{2}-\d{5})')
+    #
+    # # 5개의 샘플만 시도
+    # count = 0
+    # for img_file in os.listdir(formatted_path):
+    #     if count > 5:
+    #         break
+    #     total_str = Cloud_Vision.detect_img_text(formatted_path + img_file)
+    #     with io.open(result_path + img_file + '_result.txt', 'w', encoding="utf-8") as f:
+    #         f.write(total_str)
+    #     count += 1
 
         # bsn = None
         # try:

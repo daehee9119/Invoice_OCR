@@ -14,8 +14,13 @@ setup(name             = 'Invoice_OCR',
       url              = 'https://github.com/daehee9119/Invoice_OCR',
 
       install_requires = [
-            'google-cloud-vision >= 1.0.0',
-            'pdf2image >= 1.13.1'
+            'google-cloud-vision == 1.0.0',
+            'pdf2image           == 1.13.1',
+            'pandas              == 1.1.2',
+            'xlrd                == 1.2.0',
+            'scipy               == 1.5.2',
+            'opencv-python       == 4.4.0.42'
+
       ],
 
       packages         = find_packages(exclude=[]),

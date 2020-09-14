@@ -36,3 +36,23 @@ def remove_dir(target_dir):
         print("Failed to remove Dir! => ", target_dir, '\n', ex)
         traceback.print_stack()
         traceback.print_exc()
+
+
+def is_duplicated(target_name, src_path):
+    """
+    특정 파일이 다른 경로 내 파일 리스트 이름에 포함되는지 확인
+    :param target_name: 확인할 파일명
+    :param src_path: 대조할 파일 리스트 경로
+    :return: 존재 여부 boolean
+    """
+    # 확장자, 경로 제외한 순수 파일명
+    base_filename = os.path.splitext(os.path.basename(target_name))[0]
+    existed = False
+    # 원본 경로를 순회하면서 base_filename이 src_item에 포함되는지 확인
+    for src_item in os.listdir(src_path):
+        if base_filename in src_item:
+            existed = True
+            break
+    # 확인한 boolean 리턴
+    return existed
+

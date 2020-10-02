@@ -1,5 +1,4 @@
 import os
-import io
 # config 파일 내 설정 정보 가져올 때 쓰임
 import configparser
 # 이미지 관련 util 함수를 모아둔 스크립트
@@ -14,8 +13,6 @@ import traceback
 import pandas as pd
 # 각 회사별 B/L 패턴 추출용
 import re
-# 문서별 ocr 결과를 엑셀에 저장
-import pandas as pd
 
 # ######################MAIN STREAM###################### #
 if __name__ == '__main__':
@@ -52,15 +49,15 @@ if __name__ == '__main__':
     Util.make_dir([original_path, formatted_path, result_path])
 
     # 업체별 좌표값 읽어오기 (파일이 있는 경우만, 없다면 좌표 지정 없이 풀텍스트 OCR
-    bl_dict = ""
+    bl_df = []
     if os.path.isfile(bl_excel):
-        bl_dict = pd.read_excel(bl_excel, 'BL_DICT')
+        bl_df = pd.read_excel(bl_excel, 'BL_DICT')
 
     # pdf 포함 모든 파일들을 이미지로 변환하여 cleansed 경로로 이동
     Image_Controller.move_img(original_path, formatted_path)
 
     # 이미지 전처리 수행 (회전, 리사이즈)
-    Image_Controller.cleanse_img(formatted_path, cleansed_path, resize_standard, bl_dict)
+    Image_Controller.cleanse_img(formatted_path, cleansed_path, resize_standard, bl_df)
 
     # OCR 자원 소모를 줄이기 위해, 일괄적으로 모든 이미지를 우선 ocr 처리
     # 이후 해당 텍스트 파일을 가지고 파싱 진행
@@ -75,15 +72,63 @@ if __name__ == '__main__':
         if Util.is_duplicated(cleansed_file, result_path):
             print("Already Converted to Text : ", cleansed_file)
             continue
-        ocr_object = Cloud_Vision.detect_img_text_n_coord(cleansed_path + cleansed_file)
-        ocr_df = Cloud_Vision.get_document_bounds(ocr_object, 4)
-        ocr_df.to_excel(result_path + base_filename + '.xlsx')
+        ocr_object = Cloud_Vision.detect_img_text(cleansed_path + cleansed_file)
+        ocr_df = Cloud_Vision.get_document_bounds(ocr_object)
+        ocr_df.to_excel(result_path + base_filename + '.xlsx', index=False)
 
-        if count > 2:
-            break
-        else:
-            count += 1
+        # if count > 1:
+        #     break
+        # else:
+        #     count += 1
         # total_str = Cloud_Vision.detect_img_text(cleansed_path + cleansed_file)
         # with io.open(result_path + cleansed_file + '_result.txt', 'w', encoding="utf-8") as f:
         #     f.write(total_str)
 
+    matched_file = []
+    matched_company = []
+    matched_bl = []
+
+    for file in os.listdir(result_path):
+        temp_df = pd.read_excel(result_path + file)
+        text_list = list(temp_df["text"])
+        company_list = list(bl_df["LogName_UNIQUE"])
+        temp_regex = None
+        temp_c_name = None
+
+        # 파일명 선정의
+        matched_file.append(file)
+
+        for c_name in company_list:
+            if c_name in text_list:
+                matched_company.append(c_name)
+                temp_c_name = c_name
+                temp_regex = bl_df.loc[bl_df["LogName_UNIQUE"] == c_name]["REGEX"].values[0]
+                print(temp_regex)
+                break
+        if temp_c_name is None:
+            matched_company.append("N/A")
+            matched_bl.append("현재 문서에서 회사 정보를 추출하는데 실패!")
+            continue
+
+        if temp_regex is None:
+            matched_bl.append("정규 표현식으로 매치하는데 실패!")
+            continue
+        p = re.compile(temp_regex)
+        matched_text = ""
+        for text in text_list:
+            try:
+                matched_text = p.match(text)
+                if matched_text is not None:
+                    break
+            except:
+                print("error:" + str(text))
+                continue
+        matched_bl.append(matched_text)
+
+    bl_matched = pd.DataFrame({
+        "file": matched_file,
+        "company": matched_company,
+        "B/L": matched_bl
+    })
+
+    bl_matched.to_excel(result_path + 'Matched_BL.xlsx', index=False)

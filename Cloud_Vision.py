@@ -1,14 +1,14 @@
 # 이미지/동영상을 base64로 인코딩한 stream 값을 만들기 위함
 import io
-from enum import Enum
+import json
 
 
 # 전역변수를 encapsulation
-class FeatureType(Enum):
-    PAGE   = 1
-    BLOCK  = 2
-    PARA   = 3
-    WORD   = 4
+class FeatureType:
+    PAGE = 1
+    BLOCK = 2
+    PARA = 3
+    WORD = 4
     SYMBOL = 5
 
 
@@ -37,36 +37,9 @@ def detect_img_text(path):
             'https://cloud.google.com/apis/design/errors'.format(
                 response.error.message))
     else:
-        return_text = texts[0].description
-        return return_text
-
-
-def detect_img_text_n_coord(path):
-    """
-    수령한 이미지를 vision api를 사용해 텍스트로 변환한 후 해당 텍스트 반환
-    :param path: 원본 이미지 (경로+파일명)
-    :return: list[text:coordinates]
-    """
-    """Detects text in the file."""
-    from google.cloud import vision
-
-    client = vision.ImageAnnotatorClient()
-
-    with io.open(path, 'rb') as image_file:
-        content = image_file.read()
-
-    image = vision.types.Image(content=content)
-
-    response = client.text_detection(image=image)
-    document = response.full_text_annotations
-
-    if response.error.message:
-        raise Exception(
-            '{}\nFor more info on error messages, check: '
-            'https://cloud.google.com/apis/design/errors'.format(
-                response.error.message))
-    else:
-        return document
+        # return_text = texts[0].description
+        # return return_text
+        return texts
 
 
 # symbol = recognized object of character
@@ -108,19 +81,17 @@ def find_word_location(document, word_to_find, is_regex):
                             return word.bounding_box
 
 
-def get_document_bounds(document, feature):
+def get_document_bounds(texts):
     """
     전달받은 response 객체값에서 텍스트/좌표를 dataframe으로
-    :param document: OCR 객체
-    :param feature: 어떤 코드에 매핑되는 지는 상단의 FeatureType class 참조
+    :param texts: OCR 객체
     :return: dataframe(text, x1, y1, x)
     """
     # 리턴 객체를 담기 위한 임시 import
     import pandas as pd
 
     # 각 텍스트와 좌표를 담을 녀석
-    text = []
-    confidence = []
+    text_list = []
     coord_x1 = []
     coord_y1 = []
     coord_x2 = []
@@ -130,58 +101,69 @@ def get_document_bounds(document, feature):
     coord_x4 = []
     coord_y4 = []
 
-    # 임시로 좌표 리스트들을 담아둘 리스트
-    bounds = []
+    for text in texts:
+        text_list.append(text.description)
+        coord_x1.append(text.bounding_poly.vertices[0].x)
+        coord_y1.append(text.bounding_poly.vertices[0].y)
+        coord_x2.append(text.bounding_poly.vertices[1].x)
+        coord_y2.append(text.bounding_poly.vertices[1].y)
+        coord_x3.append(text.bounding_poly.vertices[2].x)
+        coord_y3.append(text.bounding_poly.vertices[2].y)
+        coord_x4.append(text.bounding_poly.vertices[3].x)
+        coord_y4.append(text.bounding_poly.vertices[3].y)
 
-    for page in document.pages:
-        # 페이지별 bound 필요 시
-        if feature == FeatureType.PAGE:
-            text.append(page.text)
-            confidence.append(page.confidence)
-            bounds.append(page.bounding_box)
-        else:
-            # 블록별 bound 필요 시
-            for block in page.blocks:
-                if feature == FeatureType.BLOCK:
-                    text.append(block.text)
-                    confidence.append(block.confidence)
-                    bounds.append(block.bounding_box)
-                else:
-                    # 단락별 bound 필요 시
-                    for paragraph in block.paragraphs:
-                        if feature == FeatureType.PARA:
-                            text.append(paragraph.text)
-                            confidence.append(paragraph.confidence)
-                            bounds.append(paragraph.bounding_box)
-                        else:
-                            # 단어별 bound 필요 시
-                            for word in paragraph.words:
-                                if feature == FeatureType.WORD:
-                                    text.append(word.text)
-                                    confidence.append(word.confidence)
-                                    bounds.append(word.bounding_box)
-                                else:
-                                    # 문자별 bound 필요 시
-                                    for symbol in word.symbols:
-                                        if feature == FeatureType.SYMBOL:
-                                            text.append(symbol.text)
-                                            confidence.append(symbol.confidence)
-                                            bounds.append(symbol.bounding_box)
-
-    # bounds 객체를 나눠서 저장
-    for bound in bounds:
-        coord_x1.append(bound.vertices[0].x)
-        coord_y1.append(bound.vertices[0].y)
-        coord_x2.append(bound.vertices[1].x)
-        coord_y2.append(bound.vertices[1].y)
-        coord_x3.append(bound.vertices[2].x)
-        coord_y3.append(bound.vertices[2].y)
-        coord_x4.append(bound.vertices[3].x)
-        coord_y4.append(bound.vertices[3].y)
+    # # 임시로 좌표 리스트들을 담아둘 리스트
+    # bounds = []
+    #
+    # for page in document.pages:
+    #     # 페이지별 bound 필요 시
+    #     if feature == FeatureType.PAGE:
+    #         text.append(page.text)
+    #         confidence.append(page.confidence)
+    #         bounds.append(page.bounding_box)
+    #     else:
+    #         # 블록별 bound 필요 시
+    #         for block in page.blocks:
+    #             if feature == FeatureType.BLOCK:
+    #                 text.append(block.text)
+    #                 confidence.append(block.confidence)
+    #                 bounds.append(block.bounding_box)
+    #             else:
+    #                 # 단락별 bound 필요 시
+    #                 for paragraph in block.paragraphs:
+    #                     if feature == FeatureType.PARA:
+    #                         text.append(paragraph.text)
+    #                         confidence.append(paragraph.confidence)
+    #                         bounds.append(paragraph.bounding_box)
+    #                     else:
+    #                         # 단어별 bound 필요 시
+    #                         for word in paragraph.words:
+    #                             if feature == FeatureType.WORD:
+    #                                 print(word.text, ",", word.confidence)
+    #                                 text.append(word.text)
+    #                                 confidence.append(word.confidence)
+    #                                 bounds.append(word.bounding_box)
+    #                             else:
+    #                                 # 문자별 bound 필요 시
+    #                                 for symbol in word.symbols:
+    #                                     if feature == FeatureType.SYMBOL:
+    #                                         text.append(symbol.text)
+    #                                         confidence.append(symbol.confidence)
+    #                                         bounds.append(symbol.bounding_box)
+    #
+    # # bounds 객체를 나눠서 저장
+    # for bound in bounds:
+    #     coord_x1.append(bound.vertices[0].x)
+    #     coord_y1.append(bound.vertices[0].y)
+    #     coord_x2.append(bound.vertices[1].x)
+    #     coord_y2.append(bound.vertices[1].y)
+    #     coord_x3.append(bound.vertices[2].x)
+    #     coord_y3.append(bound.vertices[2].y)
+    #     coord_x4.append(bound.vertices[3].x)
+    #     coord_y4.append(bound.vertices[3].y)
 
     ret_df = pd.DataFrame({
-        "text": text,
-        "confidence": confidence,
+        "text": text_list,
         "coord_x1": coord_x1,
         "coord_y1": coord_y1,
         "coord_x2": coord_x2,

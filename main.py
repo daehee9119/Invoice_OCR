@@ -40,13 +40,17 @@ if __name__ == '__main__':
     # jpeg 로 모두 클린징한 invoice 를 모아두는 경로
     formatted_path = config_dict["Formatted_Data"]
     cleansed_path = config_dict["Cleansed_Data"]
+    # OCR 후 엑셀 저장 경로
+    excel_path = config_dict["Excel_Data"]
+    # 데이터 검증 결과 저장용
     result_path = config_dict["Result"]
+    # BL-회사 매핑 데이터 저장용
     bl_excel = config_dict["BL_Excel"]
     # 이미지 너비,높이 표준값 [width, height]
     resize_standard = [int(config_dict["Resize Standard Width"]),
                        int(config_dict["Resize Standard Height"])]
     # 필요 경로 생성
-    Util.make_dir([original_path, formatted_path, result_path])
+    Util.make_dir([original_path, formatted_path, result_path, excel_path])
 
     # 업체별 좌표값 읽어오기 (파일이 있는 경우만, 없다면 좌표 지정 없이 풀텍스트 OCR
     bl_df = []
@@ -69,12 +73,12 @@ if __name__ == '__main__':
             print(cleansed_file + "=경로입니다.")
             continue
         # 만일 이미 format 된 거면 넘어가기
-        if Util.is_duplicated(cleansed_file, result_path):
+        if Util.is_duplicated(cleansed_file, excel_path):
             print("Already Converted to Text : ", cleansed_file)
             continue
         ocr_object = Cloud_Vision.detect_img_text(cleansed_path + cleansed_file)
         ocr_df = Cloud_Vision.get_document_bounds(ocr_object)
-        ocr_df.to_excel(result_path + base_filename + '.xlsx', index=False)
+        ocr_df.to_excel(excel_path + base_filename + '.xlsx', index=False)
 
         # if count > 1:
         #     break
@@ -88,14 +92,23 @@ if __name__ == '__main__':
     matched_company = []
     matched_bl = []
 
-    for file in os.listdir(result_path):
-        temp_df = pd.read_excel(result_path + file)
+    for file in os.listdir(excel_path):
+        # 저장해둔 이미지별 엑셀 파일 열람
+        temp_df = pd.read_excel(excel_path + file)
         text_list = list(temp_df["text"])
+
+        is_bl = [x for x in text_list if "billoflading" in str(x).lower().replace(' ', '')]
+        if len(is_bl) < 1:
+            print("B/L 문서가 아님: " + file)
+            continue
+
+        # BL-회사 매핑 문서에서 회사명 리스트 추출
         company_list = list(bl_df["LogName_UNIQUE"])
+        # 저장용 변수 초기화
         temp_regex = None
         temp_c_name = None
 
-        # 파일명 선정의
+        # 파일명 insert
         matched_file.append(file)
 
         for c_name in company_list:
@@ -103,27 +116,24 @@ if __name__ == '__main__':
                 matched_company.append(c_name)
                 temp_c_name = c_name
                 temp_regex = bl_df.loc[bl_df["LogName_UNIQUE"] == c_name]["REGEX"].values[0]
-                print(temp_regex)
                 break
+
+        # c_name이 없으면 애초에 회사명을 못 찾은 것
         if temp_c_name is None:
             matched_company.append("N/A")
             matched_bl.append("현재 문서에서 회사 정보를 추출하는데 실패!")
             continue
-
+        # temp_regex가 없으면 해당 회사에 대한 정규표현식을 안 만든 것
         if temp_regex is None:
-            matched_bl.append("정규 표현식으로 매치하는데 실패!")
+            matched_bl.append("해당 회사용으로 만든 정규표현식이 없습니다!")
             continue
+
         p = re.compile(temp_regex)
-        matched_text = ""
-        for text in text_list:
-            try:
-                matched_text = p.match(text)
-                if matched_text is not None:
-                    break
-            except:
-                print("error:" + str(text))
-                continue
-        matched_bl.append(matched_text)
+        matched_list = [x for x in text_list if p.match(str(x))]
+        if len(matched_list) > 0:
+            matched_bl.append(matched_list)
+        else:
+            matched_bl.append("정규표현식으로 매칭 실패!")
 
     bl_matched = pd.DataFrame({
         "file": matched_file,

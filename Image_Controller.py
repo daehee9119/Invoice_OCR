@@ -14,6 +14,7 @@ import math
 import Util
 # 에러 발생 시 처리용
 import traceback
+from PIL import Image, ImageDraw
 
 
 """
@@ -120,11 +121,9 @@ def cleanse_img(formatted_path, cleansed_path, resize_standard, coord_dict):
         # 만일 crop이 성공했다면
         if cropped is not None:
             result = write_unicode_img(cleansed_path + img_file, cropped)
-            print(img_file, " result = ", result)
         # 아니라면 리사이징 결과만 저장
         else:
             result = write_unicode_img(cleansed_path + img_file, resized)
-            print(img_file, " result = ", result)
 
 
 def rotate_img(path, filename):
@@ -231,3 +230,24 @@ def write_unicode_img(filename, img, params=None):
         traceback.print_exc()
         traceback.print_stack()
         return False
+
+
+def draw_boxes(src_img, out_img, bounds, color):
+    """Draw a border around the image using the hints in the vector list."""
+    image = Image.open(src_img)
+    draw = ImageDraw.Draw(image)
+
+    for bound in bounds:
+        try:
+            draw.polygon([
+                bound["vertices"][0]['x'], bound["vertices"][0]['y'],
+                bound["vertices"][1]['x'], bound["vertices"][1]['y'],
+                bound["vertices"][2]['x'], bound["vertices"][2]['y'],
+                bound["vertices"][3]['x'], bound["vertices"][3]['y']
+            ], None, color)
+        except:
+            print("좌표가 존재하지 않습니다")
+            traceback.print_exc()
+            continue
+    image.save(out_img)
+    return True

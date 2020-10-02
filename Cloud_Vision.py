@@ -20,6 +20,7 @@ def detect_img_text(path):
     """
     """Detects text in the file."""
     from google.cloud import vision
+    from google.protobuf.json_format import MessageToDict
 
     client = vision.ImageAnnotatorClient()
 
@@ -28,8 +29,11 @@ def detect_img_text(path):
 
     image = vision.types.Image(content=content)
 
-    response = client.text_detection(image=image)
-    texts = response.text_annotations
+    # response = client.text_detection(image=image)
+    # texts = response.text_annotations
+
+    response = client.document_text_detection(image=image)
+    json_obj = MessageToDict(response)
 
     if response.error.message:
         raise Exception(
@@ -37,9 +41,10 @@ def detect_img_text(path):
             'https://cloud.google.com/apis/design/errors'.format(
                 response.error.message))
     else:
-        # return_text = texts[0].description
-        # return return_text
-        return texts
+        #     # return_text = texts[0].description
+        #     # return return_text
+        #     return texts
+        return json_obj
 
 
 # symbol = recognized object of character
@@ -81,97 +86,55 @@ def find_word_location(document, word_to_find, is_regex):
                             return word.bounding_box
 
 
-def get_document_bounds(texts):
+def get_document_bounds(document, feature):
     """
-    전달받은 response 객체값에서 텍스트/좌표를 dataframe으로
-    :param texts: OCR 객체
-    :return: dataframe(text, x1, y1, x)
+    전달받은 dictionary 중 각 단위에 맞게 좌표 배열만 추출해서 전달
+    :param document: OCR 객체
+    :param feature: 어떤 단위를 칠할 건지 (page, block, paragraph, word, symbol)
+    :return: bound array(x1, y1....x4,y4)
     """
-    # 리턴 객체를 담기 위한 임시 import
-    import pandas as pd
+    from google.cloud import vision
 
-    # 각 텍스트와 좌표를 담을 녀석
-    text_list = []
-    coord_x1 = []
-    coord_y1 = []
-    coord_x2 = []
-    coord_y2 = []
-    coord_x3 = []
-    coord_y3 = []
-    coord_x4 = []
-    coord_y4 = []
+    # 리턴할 배열
+    bounds = []
+    paragraphs = []
+    lines = []
+    breaks = vision.enums.TextAnnotation.DetectedBreak.BreakType
 
-    for text in texts:
-        text_list.append(text.description)
-        coord_x1.append(text.bounding_poly.vertices[0].x)
-        coord_y1.append(text.bounding_poly.vertices[0].y)
-        coord_x2.append(text.bounding_poly.vertices[1].x)
-        coord_y2.append(text.bounding_poly.vertices[1].y)
-        coord_x3.append(text.bounding_poly.vertices[2].x)
-        coord_y3.append(text.bounding_poly.vertices[2].y)
-        coord_x4.append(text.bounding_poly.vertices[3].x)
-        coord_y4.append(text.bounding_poly.vertices[3].y)
+    for page in document["fullTextAnnotation"]["pages"]:
+        for block in page["blocks"]:
+            for paragraph in block["paragraphs"]:
+                para = ""
+                line = ""
+                for word in paragraph["words"]:
+                    for symbol in word["symbols"]:
+                        if feature == FeatureType.SYMBOL:
+                            bounds.append(symbol["boundingBox"])
+                        line += symbol["text"]
+                        try:
+                            symbol["property"]["detectedBreak"]
+                        except:
+                            # print("no key! - ", line + symbol["text"])
+                            continue
 
-    # # 임시로 좌표 리스트들을 담아둘 리스트
-    # bounds = []
-    #
-    # for page in document.pages:
-    #     # 페이지별 bound 필요 시
-    #     if feature == FeatureType.PAGE:
-    #         text.append(page.text)
-    #         confidence.append(page.confidence)
-    #         bounds.append(page.bounding_box)
-    #     else:
-    #         # 블록별 bound 필요 시
-    #         for block in page.blocks:
-    #             if feature == FeatureType.BLOCK:
-    #                 text.append(block.text)
-    #                 confidence.append(block.confidence)
-    #                 bounds.append(block.bounding_box)
-    #             else:
-    #                 # 단락별 bound 필요 시
-    #                 for paragraph in block.paragraphs:
-    #                     if feature == FeatureType.PARA:
-    #                         text.append(paragraph.text)
-    #                         confidence.append(paragraph.confidence)
-    #                         bounds.append(paragraph.bounding_box)
-    #                     else:
-    #                         # 단어별 bound 필요 시
-    #                         for word in paragraph.words:
-    #                             if feature == FeatureType.WORD:
-    #                                 print(word.text, ",", word.confidence)
-    #                                 text.append(word.text)
-    #                                 confidence.append(word.confidence)
-    #                                 bounds.append(word.bounding_box)
-    #                             else:
-    #                                 # 문자별 bound 필요 시
-    #                                 for symbol in word.symbols:
-    #                                     if feature == FeatureType.SYMBOL:
-    #                                         text.append(symbol.text)
-    #                                         confidence.append(symbol.confidence)
-    #                                         bounds.append(symbol.bounding_box)
-    #
-    # # bounds 객체를 나눠서 저장
-    # for bound in bounds:
-    #     coord_x1.append(bound.vertices[0].x)
-    #     coord_y1.append(bound.vertices[0].y)
-    #     coord_x2.append(bound.vertices[1].x)
-    #     coord_y2.append(bound.vertices[1].y)
-    #     coord_x3.append(bound.vertices[2].x)
-    #     coord_y3.append(bound.vertices[2].y)
-    #     coord_x4.append(bound.vertices[3].x)
-    #     coord_y4.append(bound.vertices[3].y)
+                        # 각 character들을 합치되, \n, space도 포함할 것
+                        if symbol["property"]["detectedBreak"]["type"] == breaks.SPACE:
+                            line += ' '
+                        if symbol["property"]["detectedBreak"]["type"] == breaks.EOL_SURE_SPACE:
+                            line += ' '
+                            lines.append(line)
+                        if symbol["property"]["detectedBreak"]["type"] == breaks.LINE_BREAK:
+                            lines.append(line)
+                            para += line
+                            line = ''
 
-    ret_df = pd.DataFrame({
-        "text": text_list,
-        "coord_x1": coord_x1,
-        "coord_y1": coord_y1,
-        "coord_x2": coord_x2,
-        "coord_y2": coord_y2,
-        "coord_x3": coord_x3,
-        "coord_y3": coord_y3,
-        "coord_x4": coord_x4,
-        "coord_y4": coord_y4
-    })
+                    if feature == FeatureType.WORD:
+                        bounds.append(word["boundingBox"])
+                paragraphs.append(para)
+                if feature == FeatureType.PARA:
+                    bounds.append(paragraph["boundingBox"])
 
-    return ret_df
+            if feature == FeatureType.BLOCK:
+                bounds.append(block["boundingBox"])
+
+    return [paragraphs, bounds]

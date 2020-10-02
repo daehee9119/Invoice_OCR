@@ -114,8 +114,9 @@ def cleanse_img(formatted_path, cleansed_path, resize_standard, coord_dict):
                              interpolation=cv2.INTER_LINEAR
                              )
 
-        # 좌표를 가졌는지 판단하는 플래그
-        cropped = crop_img(img_file, resized, coord_dict)
+        # 좌표를 가졌는지 판단하는 플래그, 나중에 정규표현식 말아먹으면 대체할 것
+        # cropped = crop_img(img_file, resized, coord_dict)
+        cropped = None
         # 만일 crop이 성공했다면
         if cropped is not None:
             result = write_unicode_img(cleansed_path + img_file, cropped)
@@ -128,7 +129,7 @@ def cleanse_img(formatted_path, cleansed_path, resize_standard, coord_dict):
 
 def rotate_img(path, filename):
     """
-    cv2의 허프 변환 함수를 이용해 이미지의 회전 여부 파악 및 0.1도 이상 회전 시 변환
+    cv2의 허프 변환 함수를 이용해 이미지의 회전 여부 파악 및 0.1도 이상 회전된 것을 감지 시 변환
     :param path: 검사할 파일이 속한 경로
     :param filename: 검사할 파일명
     :return: None
